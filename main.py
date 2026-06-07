@@ -31,6 +31,33 @@ def send_message(chat_id, text):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     data = {"receive_id": chat_id, "msg_type": "text", "content": json.dumps({"text": text})}
     requests.post(url, headers=headers, json=data)
+def add_record(url_text):
+    token = get_tenant_token()
+    url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    
+    # タイトル取得
+    title = url_text
+    try:
+        import re
+        r = requests.get(url_text, timeout=5)
+        match = re.search(r'<title>(.*?)</title>', r.text)
+        if match:
+            title = match.group(1).strip()
+    except:
+        pass
+    
+    # 日付（ミリ秒）
+    import time
+    now_ms = int(time.time() * 1000)
+    
+    data = {"fields": {
+        "テキスト": title,
+        "URL": {"link": url_text, "text": url_text},
+        "日付": now_ms
+    }}
+    res = requests.post(url, headers=headers, json=data)
+    print("BITABLE RESULT:", res.status_code, res.text)
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
