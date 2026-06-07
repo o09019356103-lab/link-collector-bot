@@ -1,7 +1,5 @@
 import os
 import json
-import hashlib
-import hmac
 import requests
 from flask import Flask, request, jsonify
 
@@ -38,12 +36,28 @@ def webhook():
         return jsonify({"challenge": body.get("challenge")})
     event = body.get("event", {})
     message = event.get("message", {})
-    content = json.loads(message.get("content", "{}"))
-    text = content.get("text", "").strip()
+    msg_type = message.get("msg_type", "")
     chat_id = message.get("chat_id")
-    if text.startswith("http"):
-        add_record(text)
+    
+    url_text = None
+    
+    if msg_type == "text":
+        content = json.loads(message.get("content", "{}"))
+        text = content.get("text", "").strip()
+        if text.startswith("http"):
+            url_text = text
+    
+    if not url_text:
+        try:
+            content = json.loads(message.get("content", "{}"))
+            url_text = content.get("url", {}).get("url") or content.get("text", "").strip()
+        except:
+            pass
+    
+    if url_text and url_text.startswith("http"):
+        add_record(url_text)
         send_message(chat_id, "✅ Baseに登録しました！")
+    
     return jsonify({"code": 0})
 
 if __name__ == "__main__":
