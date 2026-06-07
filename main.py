@@ -45,21 +45,21 @@ def is_url_already_registered(url_text):
     token = get_tenant_token()
     search_url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records"
     headers = {"Authorization": f"Bearer {token}"}
-    
-    # 全レコードを取得してPython側で比較
     params = {"page_size": 100}
     res = requests.get(search_url, headers=headers, params=params)
     result = res.json()
     items = result.get("data", {}).get("items", [])
-    
+
+    def base_url(url):
+        return url.split("?")[0].rstrip("/")
+
     for item in items:
         fields = item.get("fields", {})
         url_field = fields.get("URL", {})
-        # URLフィールドはリンク型なので "link" キーで取得
         existing_url = url_field.get("link", "") if isinstance(url_field, dict) else ""
-       if base_url(existing_url) == base_url(url_text):
+        if base_url(existing_url) == base_url(url_text):
             return True
-    
+
     return False
 
 
