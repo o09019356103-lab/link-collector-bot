@@ -1,5 +1,7 @@
 import os
 import json
+import re
+import time
 import requests
 from flask import Flask, request, jsonify
 
@@ -14,15 +16,59 @@ def get_tenant_token():
     url = "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal"
     res = requests.post(url, json={"app_id": LARK_APP_ID, "app_secret": LARK_APP_SECRET})
     data = res.json()
-    print("TOKEN RESULT:", data)
     return data.get("tenant_access_token")
+
+def get_youtube_thumbnail(url_text):
+    match = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url_text)
+    if match:
+        video_id = match.group(1)
+        return f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+    return None
+
+def upload_image_to_lark(image_url, token):
+    try:
+        img_data = requests.get(image_url, timeout=10).content
+        url = "https://open.larksuite.com/open-apis/drive/v1/medias/upload_all"
+        headers = {"Authorization": f"Bearer {token}"}
+        files = {"file": ("thumbnail.jpg", img_data, "image/jpeg")}
+        data = {"file_name": "thumbnail.jpg", "parent_type": "bitable_image", "parent_node": BITABLE_APP_TOKEN, "size": str(len(img_data))}
+        res = requests.post(url, headers=headers, files=files, data=data)
+        print("UPLOAD RESULT:", res.status_code, res.text)
+        file_token = res.json().get("data", {}).get("file_token")
+        return file_token
+    except Exception as e:
+        print("UPLOAD ERROR:", e)
+        return None
 
 def add_record(url_text):
     token = get_tenant_token()
-    url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records"
+    api_url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    data = {"fields": {"URL": {"link": url_text, "text": url_text}}}
-    res = requests.post(url, headers=headers, json=data)
+    
+    title = url_text
+    try:
+        r = requests.get(url_text, timeout=5)
+        match = re.search(r'<title>(.*?)</title>', r.text)
+        if match:
+            title = match.group(1).strip()
+    except:
+        pass
+    
+    now_ms = int(time.time() * 1000)
+    
+    fields = {
+        "テキスト": title,
+        "URL": {"link": url_text, "text": url_text},
+        "日付": now_ms
+    }
+    
+    thumbnail_url = get_youtube_thumbnail(url_text)
+    if thumbnail_url:
+        file_token = upload_image_to_lark(thumbnail_url, token)
+        if file_token:
+            fields["サムネ"] = [{"file_token": file_token}]
+    
+    res = requests.post(api_url, headers=headers, json={"fields": fields})
     print("BITABLE RESULT:", res.status_code, res.text)
 
 def send_message(chat_id, text):
@@ -31,61 +77,24 @@ def send_message(chat_id, text):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     data = {"receive_id": chat_id, "msg_type": "text", "content": json.dumps({"text": text})}
     requests.post(url, headers=headers, json=data)
-def add_record(url_text):
-    token = get_tenant_token()
-    url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records"
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    
-    # タイトル取得
-    title = url_text
-    try:
-        import re
-        r = requests.get(url_text, timeout=5)
-        match = re.search(r'<title>(.*?)</title>', r.text)
-        if match:
-            title = match.group(1).strip()
-    except:
-        pass
-    
-    # 日付（ミリ秒）
-    import time
-    now_ms = int(time.time() * 1000)
-    
-    data = {"fields": {
-        "テキスト": title,
-        "URL": {"link": url_text, "text": url_text},
-        "日付": now_ms
-    }}
-    res = requests.post(url, headers=headers, json=data)
-    print("BITABLE RESULT:", res.status_code, res.text)
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     body = request.get_json()
-    print("BODY:", json.dumps(body))
     if body.get("type") == "url_verification":
         return jsonify({"challenge": body.get("challenge")})
     event = body.get("event", {})
     message = event.get("message", {})
-    msg_type = message.get("msg_type", "")
     chat_id = message.get("chat_id")
-    print("MSG_TYPE:", msg_type)
-    print("CONTENT:", message.get("content"))
-    
-    url_text = None
     
     try:
         content = json.loads(message.get("content", "{}"))
-        print("PARSED CONTENT:", content)
         text = content.get("text", "").strip()
         if text.startswith("http"):
-            url_text = text
+            add_record(text)
+            send_message(chat_id, "✅ Baseに登録しました！")
     except Exception as e:
         print("ERROR:", e)
-    
-    if url_text and url_text.startswith("http"):
-        add_record(url_text)
-        send_message(chat_id, "✅ Baseに登録しました！")
     
     return jsonify({"code": 0})
 
