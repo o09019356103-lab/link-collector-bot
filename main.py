@@ -81,13 +81,12 @@ def add_record(url_text):
        if match:
            title = match.group(1).strip()
 
-      # OGP説明文（要約）- 複数パターン試す
-　　og_desc = re.search(r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\'](.*?)["\']', r.text)
-　　　　if not og_desc:
-    og_desc = re.search(r'<meta[^>]+name=["\']description["\'][^>]+content=["\'](.*?)["\']', r.text)
-if og_desc:
-    summary = og_desc.group(1).strip()
-
+       # OGP説明文（要約）- 複数パターン試す
+       og_desc = re.search(r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\'](.*?)["\']', r.text)
+       if not og_desc:
+           og_desc = re.search(r'<meta[^>]+name=["\']description["\'][^>]+content=["\'](.*?)["\']', r.text)
+       if og_desc:
+           summary = og_desc.group(1).strip()
 
        # OGP画像（サムネ）
        og_img = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](.*?)["\']', r.text)
