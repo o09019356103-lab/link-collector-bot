@@ -29,6 +29,9 @@ def get_youtube_thumbnail(url_text):
 def upload_image_to_lark(image_url, token):
    try:
        img_data = requests.get(image_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"}).content
+       if len(img_data) < 1000:
+           print("SKIP: image too small")
+           return None
        url = "https://open.larksuite.com/open-apis/drive/v1/medias/upload_all"
        headers = {"Authorization": f"Bearer {token}"}
        files = {"file": ("thumbnail.jpg", img_data, "image/jpeg")}
