@@ -15,8 +15,7 @@ TABLE_ID = os.environ.get("TABLE_ID")
 def get_tenant_token():
     url = "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal"
     res = requests.post(url, json={"app_id": LARK_APP_ID, "app_secret": LARK_APP_SECRET})
-    data = res.json()
-    return data.get("tenant_access_token")
+    return res.json().get("tenant_access_token")
 
 def get_youtube_thumbnail(url_text):
     match = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url_text)
@@ -33,13 +32,10 @@ def upload_image_to_lark(image_url, token):
         files = {"file": ("thumbnail.jpg", img_data, "image/jpeg")}
         data = {"file_name": "thumbnail.jpg", "parent_type": "bitable_image", "parent_node": BITABLE_APP_TOKEN, "size": str(len(img_data))}
         res = requests.post(url, headers=headers, files=files, data=data)
-        print("UPLOAD RESULT:", res.status_code, res.text)
-        file_token = res.json().get("data", {}).get("file_token")
-        return file_token
+        return res.json().get("data", {}).get("file_token")
     except Exception as e:
         print("UPLOAD ERROR:", e)
         return None
-
 
 def is_url_already_registered(url_text):
     token = get_tenant_token()
@@ -47,36 +43,27 @@ def is_url_already_registered(url_text):
     headers = {"Authorization": f"Bearer {token}"}
     params = {"page_size": 100}
     res = requests.get(search_url, headers=headers, params=params)
-    result = res.json()
-    items = result.get("data", {}).get("items", [])
+    items = res.json().get("data", {}).get("items", [])
 
     def base_url(url):
         return url.split("?")[0].rstrip("/")
 
     for item in items:
-        fields = item.get("fields", {})
-        url_field = fields.get("URL", {})
+        url_field = item.get("fields", {}).get("URL", {})
         existing_url = url_field.get("link", "") if isinstance(url_field, dict) else ""
         if base_url(existing_url) == base_url(url_text):
             return True
-
     return False
 
-
 def add_record(url_text):
-    # 重複チェック
     if is_url_already_registered(url_text):
         print("SKIP: already registered:", url_text)
         return
 
     token = get_tenant_token()
-    # ... 以下は既存のコードそのまま
-
-def add_record(url_text):
-    token = get_tenant_token()
     api_url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    
+
     title = url_text
     try:
         r = requests.get(url_text, timeout=5)
@@ -85,21 +72,20 @@ def add_record(url_text):
             title = match.group(1).strip()
     except:
         pass
-    
+
     now_ms = int(time.time() * 1000)
-    
     fields = {
         "テキスト": title,
         "URL": {"link": url_text, "text": url_text},
         "日付": now_ms
     }
-    
+
     thumbnail_url = get_youtube_thumbnail(url_text)
     if thumbnail_url:
         file_token = upload_image_to_lark(thumbnail_url, token)
         if file_token:
             fields["サムネ"] = [{"file_token": file_token}]
-    
+
     res = requests.post(api_url, headers=headers, json={"fields": fields})
     print("BITABLE RESULT:", res.status_code, res.text)
 
@@ -118,7 +104,7 @@ def webhook():
     event = body.get("event", {})
     message = event.get("message", {})
     chat_id = message.get("chat_id")
-    
+
     try:
         content = json.loads(message.get("content", "{}"))
         text = content.get("text", "").strip()
@@ -127,18 +113,8 @@ def webhook():
             send_message(chat_id, "✅ Baseに登録しました！")
     except Exception as e:
         print("ERROR:", e)
-    
+
     return jsonify({"code": 0})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
-
-# 59行目を以下に変更
-existing_url = url_field.get("link", "") if isinstance(url_field, dict) else ""
-
-# URLのパラメータを除いたベースURLで比較
-def base_url(url):
-    return url.split("?")[0].rstrip("/")
-
-if base_url(existing_url) == base_url(url_text):
-    return True
