@@ -39,6 +39,38 @@ def upload_image_to_lark(image_url, token):
     except Exception as e:
         print("UPLOAD ERROR:", e)
         return None
+def is_url_already_registered(url_text):
+    token = get_tenant_token()
+    search_url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records/search"
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    
+    data = {
+        "filter": {
+            "conjunction": "and",
+            "conditions": [
+                {
+                    "field_name": "URL",
+                    "operator": "contains",
+                    "value": [url_text]
+                }
+            ]
+        }
+    }
+    
+    res = requests.post(search_url, headers=headers, json=data)
+    result = res.json()
+    items = result.get("data", {}).get("items", [])
+    return len(items) > 0
+
+
+def add_record(url_text):
+    # 重複チェック
+    if is_url_already_registered(url_text):
+        print("SKIP: already registered:", url_text)
+        return
+
+    token = get_tenant_token()
+    # ... 以下は既存のコードそのまま
 
 def add_record(url_text):
     token = get_tenant_token()
