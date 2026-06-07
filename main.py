@@ -57,7 +57,7 @@ def is_url_already_registered(url_text):
         url_field = fields.get("URL", {})
         # URLフィールドはリンク型なので "link" キーで取得
         existing_url = url_field.get("link", "") if isinstance(url_field, dict) else ""
-        if existing_url == url_text:
+       if base_url(existing_url) == base_url(url_text):
             return True
     
     return False
@@ -132,3 +132,13 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+# 59行目を以下に変更
+existing_url = url_field.get("link", "") if isinstance(url_field, dict) else ""
+
+# URLのパラメータを除いたベースURLで比較
+def base_url(url):
+    return url.split("?")[0].rstrip("/")
+
+if base_url(existing_url) == base_url(url_text):
+    return True
