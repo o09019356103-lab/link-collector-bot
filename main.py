@@ -28,7 +28,7 @@ def get_youtube_thumbnail(url_text):
 
 def upload_image_to_lark(image_url, token):
    try:
-       img_data = requests.get(image_url, timeout=10).content
+       img_data = requests.get(image_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"}).content
        url = "https://open.larksuite.com/open-apis/drive/v1/medias/upload_all"
        headers = {"Authorization": f"Bearer {token}"}
        files = {"file": ("thumbnail.jpg", img_data, "image/jpeg")}
@@ -67,11 +67,27 @@ def add_record(url_text):
    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
    title = url_text
+   summary = ""
+   og_image_url = None
+
    try:
-       r = requests.get(url_text, timeout=5)
+       r = requests.get(url_text, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+
+       # タイトル
        match = re.search(r'<title>(.*?)</title>', r.text)
        if match:
            title = match.group(1).strip()
+
+       # OGP説明文（要約）
+       og_desc = re.search(r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\'](.*?)["\']', r.text)
+       if og_desc:
+           summary = og_desc.group(1).strip()
+
+       # OGP画像（サムネ）
+       og_img = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](.*?)["\']', r.text)
+       if og_img:
+           og_image_url = og_img.group(1).strip()
+
    except:
        pass
 
@@ -79,12 +95,14 @@ def add_record(url_text):
    fields = {
        "テキスト": title,
        "URL": {"link": url_text, "text": url_text},
-       "日付": now_ms
+       "日付": now_ms,
+       "要約": summary
    }
 
-   thumbnail_url = get_youtube_thumbnail(url_text)
-   if thumbnail_url:
-       file_token = upload_image_to_lark(thumbnail_url, token)
+   # サムネ（OGP画像を優先、YouTubeはフォールバック）
+   image_url = og_image_url or get_youtube_thumbnail(url_text)
+   if image_url:
+       file_token = upload_image_to_lark(image_url, token)
        if file_token:
            fields["サムネ"] = [{"file_token": file_token}]
 
