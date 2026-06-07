@@ -20,7 +20,8 @@ def add_record(url_text):
     url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     data = {"fields": {"URL": url_text}}
-    requests.post(url, headers=headers, json=data)
+    res = requests.post(url, headers=headers, json=data)
+    print("BITABLE RESULT:", res.status_code, res.text)
 
 def send_message(chat_id, text):
     token = get_tenant_token()
@@ -32,27 +33,26 @@ def send_message(chat_id, text):
 @app.route("/webhook", methods=["POST"])
 def webhook():
     body = request.get_json()
+    print("BODY:", json.dumps(body))
     if body.get("type") == "url_verification":
         return jsonify({"challenge": body.get("challenge")})
     event = body.get("event", {})
     message = event.get("message", {})
     msg_type = message.get("msg_type", "")
     chat_id = message.get("chat_id")
+    print("MSG_TYPE:", msg_type)
+    print("CONTENT:", message.get("content"))
     
     url_text = None
     
-    if msg_type == "text":
+    try:
         content = json.loads(message.get("content", "{}"))
+        print("PARSED CONTENT:", content)
         text = content.get("text", "").strip()
         if text.startswith("http"):
             url_text = text
-    
-    if not url_text:
-        try:
-            content = json.loads(message.get("content", "{}"))
-            url_text = content.get("url", {}).get("url") or content.get("text", "").strip()
-        except:
-            pass
+    except Exception as e:
+        print("ERROR:", e)
     
     if url_text and url_text.startswith("http"):
         add_record(url_text)
