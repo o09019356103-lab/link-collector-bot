@@ -13,7 +13,9 @@ TABLE_ID = os.environ.get("TABLE_ID")
 def get_tenant_token():
     url = "https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal"
     res = requests.post(url, json={"app_id": LARK_APP_ID, "app_secret": LARK_APP_SECRET})
-    return res.json().get("tenant_access_token")
+    data = res.json()
+    print("TOKEN RESULT:", data)
+    return data.get("tenant_access_token")
 
 def add_record(url_text):
     token = get_tenant_token()
