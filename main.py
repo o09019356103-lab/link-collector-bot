@@ -21,7 +21,7 @@ def add_record(url_text):
     token = get_tenant_token()
     url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    data = {"fields": {"URL": url_text}}
+    data = {"fields": {"URL": {"link": url_text, "text": url_text}}}
     res = requests.post(url, headers=headers, json=data)
     print("BITABLE RESULT:", res.status_code, res.text)
 
