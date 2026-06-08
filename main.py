@@ -61,6 +61,53 @@ def is_url_already_registered(url_text):
            return True
    return False
 
+def fetch_page_info(url_text):
+   title = ""
+   description = ""
+   og_image_url = None
+
+   # YouTubeの場合はoEmbed APIを使う
+   youtube_match = re.search(r"(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})", url_text)
+   if youtube_match:
+       video_id = youtube_match.group(1)
+       try:
+           oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+           res = requests.get(oembed_url, timeout=5)
+           print("OEMBED STATUS:", res.status_code, res.text[:200])
+           data = res.json()
+           title = data.get("title", "")
+           description = f'{data.get("author_name", "")}のYouTube動画'
+           og_image_url = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+           return title, description, og_image_url
+       except Exception as e:
+           print("OEMBED ERROR:", e)
+
+   # 通常のOGPスクレイピング
+   try:
+       headers = {
+           "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+       }
+       r = requests.get(url_text, timeout=5, headers=headers)
+
+       match = re.search(r'<title>(.*?)</title>', r.text, re.DOTALL)
+       if match:
+           title = match.group(1).strip()
+
+       og_desc = re.search(r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\'](.*?)["\']', r.text)
+       if not og_desc:
+           og_desc = re.search(r'<meta[^>]+name=["\']description["\'][^>]+content=["\'](.*?)["\']', r.text)
+       if og_desc:
+           description = og_desc.group(1).strip()
+
+       og_img = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](.*?)["\']', r.text)
+       if og_img:
+           og_image_url = og_img.group(1).strip()
+
+   except Exception as e:
+       print("FETCH ERROR:", e)
+
+   return title, description, og_image_url
+
 def ai_summarize(title, description, url):
    try:
        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
@@ -71,7 +118,7 @@ URL: {url}
 説明: {description}
 
 以下の2つをJSON形式のみで返してください。前後に余分なテキストや```は不要です：
-{{"clean_title": "タイトルをシンプルに整形したもの（- YouTubeなどの余分な文字を除く）", "summary": "内容を日本語で2〜3文で要約したもの"}}"""
+{{"clean_title": "タイトルをシンプルに整形したもの（- YouTubeなどの余分な文字を除く）", "summary": "タイトルと説明から読み取れる内容を日本語で2〜3文で要約したもの。情報が少ない場合はタイトルから推測して書く"}}"""
 
        message = client.messages.create(
            model="claude-haiku-4-5-20251001",
@@ -95,32 +142,12 @@ def add_record(url_text):
    api_url = f"https://open.larksuite.com/open-apis/bitable/v1/apps/{BITABLE_APP_TOKEN}/tables/{TABLE_ID}/records"
    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-   title = url_text
-   summary = ""
-   og_image_url = None
-
-   try:
-       r = requests.get(url_text, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
-
-       match = re.search(r'<title>(.*?)</title>', r.text)
-       if match:
-           title = match.group(1).strip()
-
-       og_desc = re.search(r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\'](.*?)["\']', r.text)
-       if not og_desc:
-           og_desc = re.search(r'<meta[^>]+name=["\']description["\'][^>]+content=["\'](.*?)["\']', r.text)
-       if og_desc:
-           summary = og_desc.group(1).strip()
-
-       og_img = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](.*?)["\']', r.text)
-       if og_img:
-           og_image_url = og_img.group(1).strip()
-
-   except:
-       pass
+   title, description, og_image_url = fetch_page_info(url_text)
+   print("FETCHED:", title, description)
 
    # AIでタイトル整形・日本語要約
-   title, summary = ai_summarize(title, summary, url_text)
+   title, summary = ai_summarize(title, description, url_text)
+   print("AI RESULT:", title, summary)
 
    now_ms = int(time.time() * 1000)
    fields = {
